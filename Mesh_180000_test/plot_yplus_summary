@@ -1,0 +1,271 @@
+#!/usr/bin/env python3
+import os
+import glob
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+from matplotlib.lines import Line2D
+
+# -----------------------------
+# Matplotlib style (match yours)
+# -----------------------------
+mpl.rcParams.update({
+    "figure.figsize"     : (10, 7),
+    "savefig.dpi"        : 300,
+    "text.usetex"        : False,        # mathtext ("LaTeX-ish") without requiring LaTeX install
+    "font.family"        : "DejaVu Serif",
+    "mathtext.fontset"   : "stix",
+    "font.size"          : 16,
+    "axes.titlesize"     : 18,
+    "axes.labelsize"     : 16,
+    "legend.fontsize"    : 12,
+    "xtick.labelsize"    : 12,
+    "ytick.labelsize"    : 12,
+    "lines.linewidth"    : 2.0,
+})
+
+# -----------------------------
+# USER SETTINGS
+# -----------------------------
+case_dir = "."  # run from case root or change to path
+post_dir = os.path.join(case_dir, "postProcessing")
+
+# Start time for "valid" averaging window (use same as for Nu averaging)
+t_start_avg = 0.063
+
+# Patch names and display labels (edit if yours differ)
+patches = [
+    ("cylinder",   "Cylinder"),
+    ("topwall",    "Top wall"),
+    ("bottomwall", "Bottom wall"),
+]
+
+# Optional axis limits (edit if needed)
+cyl_ylim = (0.0, 2.0)
+wall_ylim = (0.0, 400.0)
+
+# -----------------------------
+# Helpers
+# -----------------------------
+def find_yplus_file(post_dir: str) -> str:
+    """
+    Try to find a yPlus output file under postProcessing.
+    Works with common OpenFOAM layouts, and your format:
+    # Time patch min max average
+    """
+    patterns = [
+        os.path.join(post_dir, "yPlus", "*", "*.dat"),
+        os.path.join(post_dir, "yPlus", "*", "yPlus.dat"),
+        os.path.join(post_dir, "*yPlus*", "*", "*.dat"),
+        os.path.join(post_dir, "*yPlus*", "*.dat"),
+        os.path.join(post_dir, "yPlus", "*.dat"),
+    ]
+
+    candidates = []
+    for pat in patterns:
+        candidates.extend(glob.glob(pat))
+
+    for f in sorted(set(candidates)):
+        try:
+            with open(f, "r") as fh:
+                head = fh.read(2000)
+            if ("Time" in head) and ("patch" in head) and ("average" in head):
+                return f
+        except Exception:
+            continue
+
+    raise FileNotFoundError(
+        "Could not locate a yPlus .dat file under postProcessing. "
+        "Check your yPlus functionObject output folder/name."
+    )
+
+
+def load_yplus_table(fname: str):
+    """
+    Load yPlus table with columns:
+    Time, patch, min, max, average
+    Returns arrays: t, patch(str), ymin, ymax, yavg
+    """
+    t_list, patch_list, ymin_list, ymax_list, yavg_list = [], [], [], [], []
+
+    with open(fname, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+
+            parts = line.split()
+            if len(parts) < 5:
+                continue
+
+            try:
+                t = float(parts[0])
+                patch = parts[1]
+                ymin = float(parts[2])
+                ymax = float(parts[3])
+                yavg = float(parts[4])
+            except ValueError:
+                continue
+
+            t_list.append(t)
+            patch_list.append(patch)
+            ymin_list.append(ymin)
+            ymax_list.append(ymax)
+            yavg_list.append(yavg)
+
+    if not t_list:
+        raise RuntimeError(f"No readable yPlus data found in: {fname}")
+
+    return (np.array(t_list),
+            np.array(patch_list, dtype=object),
+            np.array(ymin_list),
+            np.array(ymax_list),
+            np.array(yavg_list))
+
+
+def summarize_over_time(t, patch, ymin, ymax, yavg, t_start, patches_to_keep):
+    """
+    For each patch in patches_to_keep:
+      - mean(avg) over time window
+      - min(min)  over time window
+      - max(max)  over time window
+    """
+    mask = t >= t_start
+    if mask.sum() == 0:
+        raise RuntimeError(f"No yPlus samples found for t >= {t_start}. Lower t_start_avg.")
+
+    out = {}
+    for p in patches_to_keep:
+        pm = mask & (patch == p)
+        if pm.sum() == 0:
+            out[p] = None
+            continue
+
+        out[p] = {
+            "mean_avg": float(np.mean(yavg[pm])),
+            "min_min":  float(np.min(ymin[pm])),
+            "max_max":  float(np.max(ymax[pm])),
+            "n":        int(pm.sum()),
+        }
+    return out
+
+
+def plot_yplus_twinaxis_dotwhisker(summary, patches, t_start, outfile_base="yPlus_twinaxis"):
+    """
+    One figure with two y-axes:
+      - left y-axis: cylinder scale
+      - right y-axis: wall scale
+    Points + whiskers: mean(avg) with min(min) and max(max) over the averaging window.
+
+    Guides are black dashed lines, and there is ONE legend entry for all guides:
+      --  y^+ = 1, 30, 300
+    """
+
+    # Extract stats
+    labels = []
+    meanv  = []
+    minv   = []
+    maxv   = []
+    is_cyl = []
+
+    for pname, label in patches:
+        s = summary.get(pname)
+        if s is None:
+            raise RuntimeError(f"No y+ data for patch '{pname}'")
+        labels.append(label)
+        meanv.append(s["mean_avg"])
+        minv.append(s["min_min"])
+        maxv.append(s["max_max"])
+        is_cyl.append("cyl" in pname.lower())
+
+    x = np.arange(len(labels))
+    meanv = np.array(meanv)
+    minv  = np.array(minv)
+    maxv  = np.array(maxv)
+    is_cyl = np.array(is_cyl, dtype=bool)
+
+    fig, ax_left = plt.subplots(constrained_layout=True)
+    ax_right = ax_left.twinx()
+
+    # ---- Cylinder (left axis) ----
+    x_c = x[is_cyl]
+    y_c = meanv[is_cyl]
+    yerr_c = np.vstack([y_c - minv[is_cyl], maxv[is_cyl] - y_c])
+
+    h_cyl = ax_left.errorbar(
+        x_c, y_c, yerr=yerr_c, fmt="o", capsize=6, label="Cylinder"
+    )
+
+    ax_left.set_ylim(*cyl_ylim)
+    ax_left.set_ylabel(r"$y^+$ (cylinder) [-]")
+
+    # ---- Walls (right axis) ----
+    x_w = x[~is_cyl]
+    y_w = meanv[~is_cyl]
+    yerr_w = np.vstack([y_w - minv[~is_cyl], maxv[~is_cyl] - y_w])
+
+    h_wall = ax_right.errorbar(
+        x_w, y_w, yerr=yerr_w, fmt="s", capsize=6, label="Walls"
+    )
+
+    ax_right.set_ylim(*wall_ylim)
+    ax_right.set_ylabel(r"$y^+$ (walls) [-]")
+
+    # ---- Guides (black, same linestyle) ----
+    guide_ls = "--"
+    guide_color = "black"
+
+    ax_left.axhline(1.0,   linestyle=guide_ls, color=guide_color, linewidth=1.2)
+    ax_right.axhline(30.0, linestyle=guide_ls, color=guide_color, linewidth=1.2)
+    ax_right.axhline(300.0,linestyle=guide_ls, color=guide_color, linewidth=1.2)
+
+    # Proxy handle for one combined "guides" legend entry
+    guide_proxy = Line2D([0], [0], linestyle=guide_ls, color=guide_color, linewidth=1.5)
+
+    # X axis
+    ax_left.set_xticks(x)
+    ax_left.set_xticklabels(labels)
+
+    # Grid (left axis)
+    ax_left.grid(True, axis="y", linestyle="--", linewidth=0.7)
+
+    # Legend (order: cylinder, walls, guides)
+    legend_handles = [h_cyl, h_wall, guide_proxy]
+    legend_labels  = ["Cylinder", "Walls", r"$y^+ = 1, 30, 300$"]
+
+    ax_left.legend(legend_handles, legend_labels, loc="upper left", frameon=True)
+
+    # Save
+    fig.savefig(f"{outfile_base}.png", bbox_inches="tight")
+    fig.savefig(f"{outfile_base}.pdf", bbox_inches="tight")
+
+
+# -----------------------------
+# Main
+# -----------------------------
+if __name__ == "__main__":
+    yplus_file = find_yplus_file(post_dir)
+    print(f"Using yPlus file:\n  {yplus_file}")
+
+    t, patch, ymin, ymax, yavg = load_yplus_table(yplus_file)
+
+    patches_to_keep = [p[0] for p in patches]
+    summary = summarize_over_time(t, patch, ymin, ymax, yavg, t_start_avg, patches_to_keep)
+
+    print("\nTime-window y+ summary (t >= {:.6g}):".format(t_start_avg))
+    for pname, label in patches:
+        s = summary.get(pname)
+        if s is None:
+            print(f"  {label:12s}: no data")
+        else:
+            print(f"  {label:12s}: mean(avg)={s['mean_avg']:.6g}, "
+                  f"min(min)={s['min_min']:.6g}, max(max)={s['max_max']:.6g}  (N={s['n']})")
+
+    plot_yplus_twinaxis_dotwhisker(
+        summary,
+        patches,
+        t_start=t_start_avg,
+        outfile_base="yPlus_twinaxis"
+    )
+
+    plt.show()

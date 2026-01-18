@@ -1,0 +1,102 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2112                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      fvSolution;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+solvers
+{
+    // Modified pressure
+    p_rgh
+    {
+        solver          PCG;
+        preconditioner  DIC;
+        tolerance       1e-6;
+        relTol          0.05;
+    }
+
+    // Tighter solve at the end of each time step
+    p_rghFinal
+    {
+        $p_rgh;
+        relTol          0;
+    }
+
+    // Physical pressure, reconstructed from p_rgh
+    p
+    {
+        solver          PCG;
+        preconditioner  DIC;
+        tolerance       1e-6;
+        relTol          0.05;
+    }
+
+    pFinal
+    {
+        $p;
+        relTol          0;
+    }
+
+    // Velocity
+    U
+    {
+        solver          PBiCGStab;
+        preconditioner  DILU;
+        tolerance       1e-6;
+        relTol          0;
+    }
+
+    UFinal
+    {
+        $U;
+        relTol          0;
+    }
+
+    // Temperature
+    T
+    {
+        solver          PBiCGStab;
+        preconditioner  DILU;
+        tolerance       1e-9;
+        relTol          0.1;
+    }
+
+    TFinal
+    {
+        $T;
+        relTol          0;
+    }
+}
+
+PIMPLE
+{
+    momentumPredictor          yes;   // predict U before pressure correction
+    nOuterCorrectors           1;     // one PIMPLE loop is enough for laminar
+    nCorrectors                2;     // pressure corrections per time step
+    nNonOrthogonalCorrectors   1;     // your max non-orth ~44°, 1 is fine
+
+    pRefCell                   0;
+    pRefValue                  0;
+}
+
+relaxationFactors
+{
+    equations
+    {
+        // No relaxation
+        ".*" 1.0;                     // for all equations
+    }
+}
+
+
+// ************************************************************************* //

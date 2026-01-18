@@ -1,0 +1,166 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2112                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      fvSolution;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+solvers
+{
+    // ---------------------------------------------------------------------
+    // Modified pressure p_rgh (main working pressure)
+    // ---------------------------------------------------------------------
+    p_rgh
+    {
+        solver           GAMG;
+        tolerance        1e-5;          // a bit looser for the "regular" solve
+        relTol           0.1;           // allow 10% reduction
+        maxIter          100;           // <-- avoid 1000-iteration slogs
+
+        smoother         DICGaussSeidel;
+        nFinestSweeps    2;
+
+        cacheAgglomeration     true;
+        nCellsInCoarsestLevel  40;
+        agglomerator           faceAreaPair;
+        mergeLevels            1;
+    }
+
+    // Tighter final solve at the end of each time step
+    p_rghFinal
+    {
+        $p_rgh;
+        tolerance        1e-6;          // tighter for the last correction
+        relTol           0.0;
+        maxIter          200;           // let final solve work a bit harder
+    }
+
+    // ---------------------------------------------------------------------
+    // Physical pressure p (reconstructed from p_rgh)
+    // Keep it consistent with p_rgh
+    // ---------------------------------------------------------------------
+
+    p
+    {
+        solver           GAMG;
+        tolerance        1e-5;
+        relTol           0.1;
+        maxIter          100;
+
+        smoother         DICGaussSeidel;
+        nFinestSweeps    2;
+
+        cacheAgglomeration     true;
+        nCellsInCoarsestLevel  40;
+        agglomerator           faceAreaPair;
+        mergeLevels            1;
+    }
+
+    pFinal
+    {
+        $p;
+        tolerance        1e-6;
+        relTol           0.0;
+        maxIter          200;
+    }
+
+    // ---------------------------------------------------------------------
+    // Velocity
+    // ---------------------------------------------------------------------
+    U
+    {
+        solver          PBiCGStab;
+        preconditioner  DILU;
+        tolerance       1e-6;
+        relTol          0;
+    }
+
+    UFinal
+    {
+        $U;
+        relTol          0;
+    }
+
+    // ---------------------------------------------------------------------
+    // Temperature
+    // ---------------------------------------------------------------------
+    T
+    {
+        solver          PBiCGStab;
+        preconditioner  DILU;
+        tolerance       1e-9;
+        relTol          0.1;
+    }
+
+    TFinal
+    {
+        $T;
+        relTol          0;
+    }
+
+    // ---------------------------------------------------------------------
+    // Turbulent kinetic energy
+    // ---------------------------------------------------------------------
+    k
+    {
+        solver          PBiCGStab;
+        preconditioner  DILU;
+        tolerance       1e-6;
+        relTol          0.05;
+    }
+
+    kFinal
+    {
+        $k;
+        relTol          0;
+    }
+
+    // ---------------------------------------------------------------------
+    // Specific dissipation rate omega
+    // ---------------------------------------------------------------------
+    omega
+    {
+        solver          PBiCGStab;
+        preconditioner  DILU;
+        tolerance       0.5e-6;
+        relTol          0.05;
+    }
+
+    omegaFinal
+    {
+        $omega;
+        relTol          0;
+    }
+}
+
+
+PIMPLE
+{
+    momentumPredictor          yes;   // predict velocity first
+    nOuterCorrectors           1;     // number of outer correctors for PIMPLE
+    nCorrectors                2;     // number of correctors for pressure-velocity coupling
+    nNonOrthogonalCorrectors   1;     // number of non-orthogonal correctors
+
+    pRefCell                   0;
+    pRefValue                  0;
+}
+
+relaxationFactors
+{
+    equations
+    {
+        ".*" 1.0;  // No relaxation
+    }
+}
+
+
+// ************************************************************************* //

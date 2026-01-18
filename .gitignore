@@ -1,0 +1,67 @@
+########################################
+# OpenFOAM time directories
+########################################
+
+# Ignore all numeric time folders
+[1-9]*/
+[0-9][0-9]*/
+[0-9][0-9][0-9]*/
+[0-9][0-9][0-9][0-9]*/
+[0-9]*.*
+
+# But keep initial conditions
+!0/
+!0/**
+!0.orig/
+!0.orig/**
+
+########################################
+# Parallel runs
+########################################
+processor*/
+reconstructPar*/
+
+########################################
+# Post-processing output
+########################################
+postProcessing/
+VTK/
+foamData/
+dynamicCode/
+logs/
+
+########################################
+# Log files
+########################################
+log.*
+log
+
+########################################
+# ParaView / sampled / exported data
+########################################
+*.csv
+*.dat
+*.txt
+*.vtk
+*.vtp
+*.vtu
+sampled*
+paraview*
+timeAveraged*
+profiles_*
+
+########################################
+# Editor / OS junk
+########################################
+*~
+*.swp
+.DS_Store
+
+########################################
+# Python cache
+########################################
+__pycache__/
+*.pyc
+
+# 3D polyMesh too large for GitHub; regenerate locally
+Turbulent_3D/constant/polyMesh/

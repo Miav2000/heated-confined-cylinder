@@ -1,0 +1,77 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2112                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volVectorField;
+    object      U;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+dimensions      [0 1 -1 0 0 0 0];
+
+internalField   uniform (0 0 0);
+
+boundaryField
+{
+    inlet
+    {
+        type            codedFixedValue;
+        value           uniform (0 0 0);   // dummy, overwritten by code
+        name            poiseuilleInlet;
+
+        code
+        #{
+            const fvPatch& boundaryPatch = patch();
+            const vectorField& Cf = boundaryPatch.Cf();  // face centres
+
+            scalar H        = 0.046;   // [m] full channel height (topwall - bottomwall)
+            scalar yCenter  = 0.0;     // [m] y-coordinate of channel centreline
+            scalar Umax     = 0.028466;    // [m/s] centreline velocity (control , Re=300)
+
+            vectorField& field = *this;
+
+            forAll(Cf, i)
+            {
+                scalar y    = Cf[i].y();
+                scalar yRel = y - yCenter;          // [-H/2, H/2] ideally
+                scalar u    = Umax*(1.0 - sqr(2.0*yRel/H));
+                field[i]    = vector(u, 0.0, 0.0);  // flow in +x
+            }
+        #};
+    }
+
+    topwall
+    {
+        type            noSlip;
+    }
+
+    bottomwall
+    {
+        type            noSlip;
+    }
+
+    cylinder
+    {
+        type            noSlip;
+    }
+
+    outlet
+    {
+        type            zeroGradient;
+    }
+
+    frontAndBackPlanes
+    {
+        type            empty;
+    }
+}
+
+
+// ************************************************************************* //

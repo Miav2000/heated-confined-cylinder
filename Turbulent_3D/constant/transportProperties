@@ -1,0 +1,34 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2112                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      transportProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+transportModel  Newtonian;
+
+// Laminar kinematic viscosity [m2/s] (film temperature)
+nu              9.4887e-07;   
+
+// Thermal expansion coefficient [1/K] (Boussinesq beta at film temperature)
+beta            2.21e-4;
+
+// Reference temperature [K] (inlet water temperature)
+TRef            293.15;
+
+// Laminar Prandtl number (water at film temperature)
+Pr              6.57;
+
+// Turbulent Prandtl number
+Prt             0.85;
+
+// ************************************************************************* //

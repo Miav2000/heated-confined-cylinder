@@ -1,0 +1,355 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2112                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      controlDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Solver selection
+
+application     buoyantBoussinesqPimpleFoam;    // Unsteady turbulent flow with Boussinesq buoyancy + heat transfer
+
+
+// Time control
+
+startFrom       startTime;
+startTime       0;
+
+stopAt          endTime;
+endTime         0.35;              // Simulation end time (adjust as needed)
+
+
+// Time step control
+
+deltaT          0.5e-6;              // Initial time step
+adjustTimeStep  yes;               // Allow automatic time step adjustment
+maxCo           0.6;               // Courant limit (recommended for unsteady)
+maxDeltaT       2e-4;              // Maximum allowed Δt after adjustment
+
+
+// Output control
+
+writeControl    timeStep;          // Write based on number of time steps
+writeInterval   5000;              // Write fields every 5000 time steps
+
+purgeWrite      5;                 // Keep only the latest 5 writes
+
+writeFormat     ascii;
+writePrecision  7;
+writeCompression off;
+
+timeFormat      general;
+timePrecision   6;
+
+runTimeModifiable true;
+
+
+// Function Objects (post-processing during the run)
+
+functions
+{
+    // 1) Compute MEAN inlet velocity and temperature
+    //    - Used to compute Re, bulk temperature, etc.
+
+
+    inletMeanUT
+    {
+        type            surfaceFieldValue;
+        libs            (fieldFunctionObjects);
+
+        regionType      patch;
+        name            inlet;             
+
+        operation       areaAverage;
+        fields          (U T);             // Average velocity and temperature
+
+        writeControl    timeStep;
+        writeInterval   500;               // How often to write averages
+
+        writeFields     no;                
+        log             yes;              
+    }
+
+
+
+    // 3) Velocity & temperature profiles as line samples
+    //    - Used for validation (centerline profiles, upstream/downstream)
+    //    - Stored in postProcessing/profiles/
+
+    profiles
+    {
+        type            sets;
+        libs            (sampling);
+
+        interpolationScheme cellPoint;
+        setFormat       raw;
+
+        fields          (U T);
+
+        sets
+        (
+            // 30 mm from inlet:
+            // x = -0.15 m + 0.03 m = -0.12 m
+            x_030mm
+            {
+                type    uniform;
+                axis    y;
+                start   (-0.12 -0.023 0.023);
+                end     (-0.12  0.023 0.023);
+                nPoints 200;
+            }
+
+            // 50 mm from inlet:
+            // x = -0.15 m + 0.05 m = -0.10 m
+            x_050mm
+            {
+                type    uniform;
+                axis    y;
+                start   (-0.10 -0.023 0.023);
+                end     (-0.10  0.023 0.023);
+                nPoints 200;
+            }
+
+            // 150 mm from inlet (cylinder centre):
+            // x = -0.15 m + 0.15 m = 0.0 m
+            x_150mm_cylinderCentre
+            {
+                type    uniform;
+                axis    y;
+                start   (0.0  -0.023 0.023);
+                end     (0.0   0.023 0.023);
+                nPoints 200;
+            }
+
+            // 200 mm from inlet (50 mm downstream of cylinder centre):
+            // x = -0.15 m + 0.20 m = 0.05 m
+            x_200mm
+            {
+                type    uniform;
+                axis    y;
+                start   (0.05 -0.023 0.023);
+                end     (0.05  0.023 0.023);
+                nPoints 200;
+            }
+
+            // 170 mm from inlet (20 mm downstream of cylinder centre):
+            // x = -0.15 m + 0.20 m = 0.02 m
+            x_170mm
+            {
+                type    uniform;
+                axis    y;
+                start   (0.02 -0.023 0.023);
+                end     (0.02  0.023 0.023);
+                nPoints 200;
+            }
+
+            // Centerline Ux(x) from inlet to cylinder
+            // y = 0, z = 0, x from -0.15 (inlet centre) to 0.0 (cylinder centre)
+            centerlineUx
+            {
+                type    uniform;
+                axis    x;
+                start   (-0.15 0 0.023);      // inlet centre
+                end     (0.0   0 0.023);      // cylinder centre
+                nPoints 400;              // resolution along x
+            }
+        );
+
+        writeControl    timeStep;
+        writeInterval   1000;            
+    }
+
+
+    // 4) qWall and local NuWall on the cylinder
+    //    writes fields qWall and NuWall in each time directory
+
+    wallNu
+    {
+        type        coded;
+        libs        ("libutilityFunctionObjects.so");
+        name        wallNu;
+
+        // run every time-step; write fields at normal write times
+        executeControl  timeStep;
+        executeInterval 1;
+        writeControl    writeTime;
+        writeInterval   1;
+
+        codeInclude
+        #{
+            #include "fvCFD.H"
+        #};
+
+        codeExecute
+        #{
+            const fvMesh& mesh = this->mesh();
+
+            // --- USER PARAMETERS (edit these if needed) ---
+            const scalar D      = 0.01;      // cylinder diameter [m]
+            const scalar kFluid = 0.625;       // W/m/K (water at film T)
+            const scalar Tw     = 298.15;    // wall temperature [K] 25 °C
+            const scalar Tinf   = 293.15;    // reference fluid temp [K] 20 °C
+            const scalar DeltaT = Tw - Tinf;
+            const word   patchName("cylinder");
+
+            if (mag(DeltaT) < VSMALL)
+            {
+                Info<< "wallNu: |Tw - Tinf| too small, skipping at t="
+                    << mesh.time().timeName() << nl;
+                return true;
+            }
+
+            // Temperature field
+            const volScalarField& T =
+                mesh.lookupObject<volScalarField>("T");
+
+            // Patch id
+            const label patchID = mesh.boundaryMesh().findPatchID(patchName);
+            if (patchID < 0)
+            {
+                FatalErrorInFunction
+                    << "Patch " << patchName << " not found" << nl
+                    << abort(FatalError);
+            }
+
+            // Normal gradient of T on all faces
+            surfaceScalarField snGradT = fvc::snGrad(T);
+            const scalarField& snGradTpatch =
+                snGradT.boundaryField()[patchID];
+
+            // --- Create (or reuse) qWall and NuWall fields ---
+
+            static autoPtr<volScalarField> qWallPtr;
+            static autoPtr<volScalarField> NuWallPtr;
+
+            if (!qWallPtr.valid())
+            {
+                Info<< "wallNu: creating qWall and NuWall fields" << nl;
+
+                qWallPtr.set
+                (
+                    new volScalarField
+                    (
+                        IOobject
+                        (
+                            "qWall",
+                            mesh.time().timeName(),
+                            mesh,
+                            IOobject::NO_READ,
+                            IOobject::NO_WRITE        // change to AUTO_WRITE to write with time directories
+                        ),
+                        mesh,
+                        dimensionedScalar
+                        (
+                            "zero",
+                            dimensionSet(1,0,-3,0,0,0,0),    // W/m^2
+                            0.0
+                        )
+                    )
+                );
+
+                NuWallPtr.set
+                (
+                    new volScalarField
+                    (
+                        IOobject
+                        (
+                            "NuWall",
+                            mesh.time().timeName(),
+                            mesh,
+                            IOobject::NO_READ,
+                            IOobject::NO_WRITE     // change to AUTO_WRITE to write with time directories
+                        ),
+                        mesh,
+                        dimensionedScalar("zero", dimless, 0.0)
+                    )
+                );
+            }
+
+            volScalarField& qWall  = qWallPtr();
+            volScalarField& NuWall = NuWallPtr();
+
+            qWall.checkIn();
+            NuWall.checkIn();
+
+            // Patch fields
+            scalarField& qPatch =
+                qWall.boundaryFieldRef()[patchID];
+
+            scalarField& NuPatch =
+                NuWall.boundaryFieldRef()[patchID];
+
+            forAll(qPatch, i)
+            {
+                const scalar dTdn = snGradTpatch[i];      // dT/dn
+                const scalar q    = kFluid * dTdn;       // W/m2
+                qPatch[i]         = q;
+                NuPatch[i]        = q*D/(kFluid*DeltaT);  // dimensionless
+            }
+
+            // Write fields
+            // qWall.write();      // Commented out to reduce disk usage, add back if local qWall needed
+            // NuWall.write();     // Commented out to reduce disk usage, add back if local NuWall needed
+
+            // Area-weighted instantaneous average Nu (for log)
+            const scalarField& area =
+                mesh.magSf().boundaryField()[patchID];
+
+            scalar Q     = gSum(qPatch*area);
+            scalar A     = gSum(area);
+            scalar NuAvg = gSum(NuPatch*area)/A;
+
+            Info<< "wallNu: t=" << mesh.time().timeName()
+                << "  Q=" << Q << " W"
+                << "  Nu_avg=" << NuAvg << nl;
+            
+            return true;
+        #};
+    }
+
+
+    // 5) Area-averaged NuWall on cylinder (goes to postProcessing/)
+    //    -> nice clean Nu_avg(t) file
+
+    NuAvgCylinder
+    {
+        type            surfaceFieldValue;
+        libs            (fieldFunctionObjects);
+
+        regionType      patch;
+        name            cylinder;
+
+        operation       areaAverage;
+        fields          (NuWall);
+
+        writeControl    timeStep;   // match when NuWall/qWall are writte
+        writeInterval   50;
+
+        writeFields     no;
+        log             yes;
+    }
+
+    // 6) y+ calculation for RANS wall functions
+    yPlus
+    {
+        type            yPlus;
+        libs            ("libfieldFunctionObjects.so");
+        
+        writeControl    timeStep;
+        writeInterval   500;       
+        log             yes;
+    }
+}
+
+    
+
+// ************************************************************************* //

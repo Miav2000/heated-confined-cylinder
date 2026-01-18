@@ -1,0 +1,145 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2112                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      profiles;
+}
+
+// Sampled fields
+fields          (U T);
+
+// Sampling type
+type            sets;
+
+// Library (v2112 safest form)
+libs            ("libsampling.so");
+
+// Interpolation and output format
+interpolationScheme cellPoint;
+setFormat       raw;
+
+// Define sampling sets
+sets
+(
+    // 30 mm from inlet:
+    // x = -0.15 m + 0.03 m = -0.12 m
+    x_030mm
+    {
+        type    uniform;
+        axis    y;
+        start   (-0.12 -0.023 0);
+        end     (-0.12  0.023 0);
+        nPoints 1000;
+    }
+
+    // 50 mm from inlet:
+    // x = -0.15 m + 0.05 m = -0.10 m
+    x_050mm
+    {
+        type    uniform;
+        axis    y;
+        start   (-0.10 -0.023 0);
+        end     (-0.10  0.023 0);
+        nPoints 1000;
+    }
+
+    // 150 mm from inlet (cylinder centre):
+    // x = -0.15 m + 0.15 m = 0.0 m
+    x_150mm_cylinderCentre
+    {
+        type    uniform;
+        axis    y;
+        start   (0.0  -0.023 0);
+        end     (0.0   0.023 0);
+        nPoints 1000;
+    }
+
+    // 170 mm from inlet (20 mm downstream of cylinder centre):
+    // x = -0.15 m + 0.17 m = 0.02 m
+    x_170mm
+    {
+        type    uniform;
+        axis    y;
+        start   (0.02 -0.023 0);
+        end     (0.02  0.023 0);
+        nPoints 1000;
+    }
+
+    // 165 mm from inlet (15 mm downstream of cylinder centre):
+    // x = -0.15 m + 0.165 m = 0.015 m
+    x_165mm
+    {
+        type    uniform;
+        axis    y;
+        start   (0.015 -0.023 0);
+        end     (0.015  0.023 0);
+        nPoints 1000;
+    }
+
+    // 175 mm from inlet (25 mm downstream of cylinder centre):
+    // x = -0.15 m + 0.175 m = 0.025 m
+    x_175mm
+    {
+        type    uniform;
+        axis    y;
+        start   (0.025 -0.023 0);
+        end     (0.025  0.023 0);
+        nPoints 1000;
+    }
+
+    // 185 mm from inlet (25 mm downstream of cylinder centre):
+    // x = -0.15 m + 0.185 m = 0.035 m
+    x_185mm
+    {
+        type    uniform;
+        axis    y;
+        start   (0.035 -0.023 0);
+        end     (0.035  0.023 0);
+        nPoints 1000;
+    }
+
+    // 200 mm from inlet (50 mm downstream of cylinder centre):
+    // x = -0.15 m + 0.20 m = 0.05 m
+    x_200mm
+    {
+        type    uniform;
+        axis    y;
+        start   (0.05 -0.023 0);
+        end     (0.05  0.023 0);
+        nPoints 1000;
+    }
+
+    // 500 mm from inlet (350 mm downstream of cylinder centre):
+    // x = -0.15 m + 0.50 m = 0.35 m
+    x_500mm
+    {
+        type    uniform;
+        axis    y;
+        start   (0.35 -0.023 0);
+        end     (0.35  0.023 0);
+        nPoints 1000;
+    }
+
+    // Centerline Ux(x) from inlet to cylinder
+    // y = 0, z = 0, x from -0.15 (inlet centre) to 0.0 (cylinder centre)
+    centerlineUx
+    {
+        type    uniform;
+        axis    x;
+        start   (-0.15 0 0);
+        end     (0.0   0 0);
+        nPoints 1000;
+    }
+);
+
+// Write at every processed time directory (best for postProcess)
+writeControl    writeTime;
+writeInterval   2500;

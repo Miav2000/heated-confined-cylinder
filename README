@@ -1,0 +1,46 @@
+# Convective Heat Transfer Around a Confined Cylinder
+OpenFOAM case setups and post-processing scripts used in the
+Master’s project on confined cylinder heat transfer at AAU.
+
+
+## Software versions
+The cases were developed and tested using:
+- OpenFOAM v2112 
+- Python 3
+
+Other recent OpenFOAM and Python 3.x versions may also work
+
+## Cases
+This repository contains two OpenFOAM case setups:
+
+- Base_Unsteady_Laminar/Medium_mesh_40000  
+- Base_Unsteady_Turbulent/Mesh_180000_test
+- Turbulent_3D
+
+Only the case definitions are included (0/, constant/, system/ + helper scripts).
+Simulation results (time directories, processor* folders, postProcessing, logs) are excluded.
+
+## Run case (example)
+```bash
+cd Base_Unsteady_Turbulent/Mesh_180000_test
+./Allrun
+
+If using Visual Studio Code, one can also find the case in the file-tree, right-click on a case and select "Open in Integrated Terminal" adn from there write ./Allrun and press ENTER. 
+
+## Post-processing
+The repository includes Python scripts for analysing simulation output:
+- Data_Processing.py (Nu vs time plot, velocity profiles plot, a summary)
+- plotResiduals.py (plots the residuals, not that foamLog + solver-log needs to be run first)
+- plot_yplus_summary (only for turbulent cases)
+
+These scripts operate on OpenFOAM output generated during the simulations and may be executed while a simulation is running in another terminal.
+
+## Run python script (example)
+```bash
+cd Base_Unsteady_Turbulent/Mesh_180000_test
+python3 Data_Processing.py 
+
+## Contact
+This repository accompanies a Master’s thesis submitted to
+Aalborg University. For questions, please contact the author :)
+

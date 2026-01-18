@@ -1,0 +1,72 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2112                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      fvSchemes;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+
+// Time derivative schemes
+
+ddtSchemes
+{
+    default         backward;                     // 2nd-order in time
+}
+
+// Gradient schemes
+
+gradSchemes
+{
+    default         Gauss linear;                 // Green–Gauss gradients
+}
+
+// Divergence schemes
+
+divSchemes
+{
+    default         none;
+    div(phi,U)      Gauss linearUpwind grad(U);   // momentum convection
+    div(phi,T)      Gauss linearUpwind grad(T);   // energy convection
+    div((nuEff*dev2(T(grad(U))))) Gauss linear;   // viscous term
+}
+
+// Laplacian schemes
+laplacianSchemes
+{
+    default         Gauss linear corrected;       // diffusion with non-orth correction (handles non-orthogonality better) 
+}
+
+// Interpolation schemes
+
+interpolationSchemes
+{
+    default         linear;
+}
+
+// Surface normal gradient schemes
+snGradSchemes
+{
+    default         corrected;                    // normal gradients with correction (again, handles non-orthogonality better)
+}
+
+
+// Flux required
+
+fluxRequired
+{
+    default   no;
+    p_rgh;
+    pcorr;
+}
+
+
+// ************************************************************************* //

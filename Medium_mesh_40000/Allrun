@@ -1,0 +1,42 @@
+#!/bin/sh
+cd "${0%/*}" || exit 1                               # Run from this directory
+. ${WM_PROJECT_DIR:?}/bin/tools/RunFunctions        # Tutorial run functions
+#------------------------------------------------------------------------------
+
+# Get the solver from system/controlDict (here: buoyantBoussinesqPimpleFoam)
+app=$(getApplication)
+
+echo ">>> Checking mesh ..."
+# Import mesh if constant/polyMesh is missing or incomplete
+if [ ! -d constant/polyMesh ] || [ ! -f constant/polyMesh/points ]; then
+    echo "Mesh not found or incomplete — importing from Fluent mesh"
+    runApplication fluentMeshToFoam system/2D_heat_cyl_laminar.msh
+
+    echo ">>> Scaling mesh thickness in z-direction ..."
+    # Make the 2D slab very thin in z (keeps 2D physics, fixes aspect ratio)
+    runApplication transformPoints -scale "(1 1 0.01)"
+fi
+
+# Now check the (already scaled) mesh
+runApplication checkMesh
+
+# Decide serial vs parallel based on presence of decomposeParDict
+if [ -f system/decomposeParDict ]; then
+    echo ">>> Found system/decomposeParDict → running in PARALLEL"
+
+    # Decompose the domain
+    runApplication decomposePar
+
+    # Run solver in parallel (runParallel handles mpirun + logging)
+    runParallel "$app"
+
+    # Reconstruct full-domain fields from processor* folders
+    echo ">>> Reconstructing decomposed fields ..."
+    runApplication reconstructPar
+
+else
+    echo ">>> No decomposeParDict → running in SERIAL"
+
+    # Just run the solver normally
+    runApplication "$app"
+fi

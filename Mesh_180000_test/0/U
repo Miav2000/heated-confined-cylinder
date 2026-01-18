@@ -1,0 +1,86 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  v2112                                 |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volVectorField;
+    object      U;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+dimensions      [0 1 -1 0 0 0 0];
+
+internalField   uniform (0 0 0);
+
+boundaryField
+{
+    inlet
+    {
+        type            codedFixedValue;
+        value           uniform (0 0 0);   // dummy, overwritten by code
+        name            turbulentInletProfile;
+
+        code
+        #{
+            const fvPatch& boundaryPatch = patch();
+            const vectorField& Cf = boundaryPatch.Cf();  // face centres
+
+            scalar H        = 0.046;       // [m] full channel height (topwall - bottomwall)
+            scalar yCenter  = 0.0;         // [m] y-coordinate of channel centreline
+            scalar Umax     = 37.9548;    // [m/s] centreline velocity
+            scalar n        = 9.7;         // power-law exponent for turbulent profile at Re = 4·10^5
+
+            vectorField& field = *this;
+
+            forAll(Cf, i)
+            {
+                scalar y    = Cf[i].y();
+                scalar yRel = y - yCenter;         // [-H/2, H/2]
+                scalar eta  = 2.0*mag(yRel)/H;     // 2|y|/H, in [0,1]
+
+                // turbulent power-law profile: Umax * (1 - 2|y|/H)^(1/n)
+                scalar u = 0.0;
+                if (eta < 1.0)
+                {
+                    u = Umax * pow(1.0 - eta, 1.0/n);
+                }
+                // else u stays 0 if a face is exactly at the wall
+
+                field[i] = vector(u, 0.0, 0.0);    // flow in +x
+            }
+        #};
+    }
+
+    topwall
+    {
+        type            noSlip;
+    }
+
+    bottomwall
+    {
+        type            noSlip;
+    }
+
+    cylinder
+    {
+        type            noSlip;
+    }
+
+    outlet
+    {
+        type            zeroGradient;
+    }
+
+    frontAndBackPlanes
+    {
+        type            empty;
+    }
+}
+
+// ************************************************************************* //

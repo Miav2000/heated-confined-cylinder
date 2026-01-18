@@ -1,0 +1,51 @@
+#!/bin/sh
+cd "${0%/*}" || exit 1                               # Run from this directory
+
+echo ">>> Cleaning case (SAFE MODE)..."
+
+# -------------------------------
+# Remove time directories except '0'
+# -------------------------------
+echo "  - Removing time folders (except 0/)"
+
+for d in *; do
+    # Check if it's a directory AND its name is a number (integer or float)
+    if [ -d "$d" ] && [ "$d" != "0" ] && echo "$d" | grep -Eq '^[0-9]+(\.[0-9]+)?$'; then
+        echo "    deleting $d"
+        rm -rf "$d"
+    fi
+done
+# -------------------------------
+# Remove processor directories (parallel runs)
+# -------------------------------
+echo "  - Removing processor* folders"
+rm -rf processor*
+
+# -------------------------------
+# Remove postProcessing
+# -------------------------------
+echo "  - Removing postProcessing/"
+rm -rf postProcessing
+
+# -------------------------------
+# Remove dynamicCode generated libraries
+# -------------------------------
+echo "  - Removing dynamicCode/"
+rm -rf dynamicCode
+
+# -------------------------------
+# Remove foamLog residual folders
+# -------------------------------
+echo "  - Removing logs/ (foamLog output)"
+rm -rf logs
+
+# -------------------------------
+# Remove log files
+# -------------------------------
+echo "  - Removing log files"
+rm -f log.*
+rm -f log
+
+
+echo ">>> Cleaning complete. The case is reset to its initial state."
+echo ">>> 0/, constant/, and system/ were NOT touched."
