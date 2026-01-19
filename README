@@ -25,7 +25,7 @@ Simulation results (time directories, processor* folders, postProcessing, logs) 
 cd Base_Unsteady_Turbulent/Mesh_180000_test
 ./Allrun
 
-If using Visual Studio Code, one can also find the case in the file-tree, right-click on a case and select "Open in Integrated Terminal" adn from there write ./Allrun and press ENTER. 
+If using Visual Studio Code, one can also find the case in the file-tree, right-click on a case and select "Open in Integrated Terminal" and from there write ./Allrun and press ENTER. 
 
 ## Post-processing
 The repository includes Python scripts for analysing simulation output:
