@@ -41,6 +41,5 @@ cd Base_Unsteady_Turbulent/Mesh_180000_test
 python3 Data_Processing.py 
 
 ## Contact
-This repository accompanies a Master’s thesis submitted to
-Aalborg University. For questions, please contact the author :)
+For questions, please contact the author :)
 
